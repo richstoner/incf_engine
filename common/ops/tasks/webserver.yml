@@ -1,0 +1,61 @@
+---
+
+- include: common.yml
+
+- name: install python-software-properties
+  action: apt pkg=python-software-properties state=present
+
+- name: add nginx ppa
+  action: apt_repository repo=ppa:nginx/stable state=present
+
+- name: install web server packages
+  action: apt pkg=$item state=installed
+  with_items:
+    - build-essential
+    - libmysqlclient-dev
+    - libxml2-dev
+    - libjpeg62
+    - libjpeg62-dev
+    - libfreetype6
+    - libfreetype6-dev
+    - zlib1g-dev
+    - mysql-client
+    - python-mysqldb
+    - nginx
+
+- name: install gunicorn with pip
+  action: pip name=gunicorn state=present
+
+- name: install supervisor with pip
+  action: pip name=supervisor version=3.0b2 state=present
+
+- name: remove default nginx site
+  action: file path=/etc/nginx/sites-enabled/default state=absent
+
+- name: write nginx.conf
+  action: template src=templates/nginx.conf dest=/etc/nginx/nginx.conf
+  notify:
+    - restart nginx
+
+- name: create supervisord config folder
+  action: file dest=/etc/supervisor state=directory owner=root
+
+- name: create supervisord config
+  action: template src=templates/supervisord.conf dest=/etc/supervisord.conf
+
+- name: create supervisord init script
+  action: template src=templates/supervisord.sh dest=/etc/init.d/supervisord mode=0755
+
+- name: start supervisord service and have it run during system startup
+  action: service name=supervisord state=started enabled=yes
+
+- name: ensure log directory
+  action: file dest=/var/log/${app_name} state=directory
+
+- name: create nginx site config
+  action: template src=templates/nginx_site.conf dest=/etc/nginx/sites-available/${app_name}.conf
+
+- name: link nginx config
+  action: file src=/etc/nginx/sites-available/${app_name}.conf dest=/etc/nginx/sites-enabled/${app_name}.conf state=link
+  notify:
+    - restart nginx

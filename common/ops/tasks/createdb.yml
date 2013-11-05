@@ -1,0 +1,8 @@
+---
+
+- name: create database user
+  action: postgresql_user user=${app_name} password=${database_password} state=present
+
+- name: create database
+  action: postgresql_db name=${app_name} owner=${app_name} state=present
+  notify: build database

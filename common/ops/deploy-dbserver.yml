@@ -1,0 +1,34 @@
+---
+
+- hosts: dbservers
+  sudo: True
+
+  vars_files:
+      - vars.yml
+
+  tasks:
+    - include: tasks/dbserver.yml
+      when: fast_deploy is not defined
+
+    - name: deploy code from repository
+      action: git repo=$repo_url dest=${webapps_dir}/${app_name} remote=$repo_remote version=$repo_version
+
+    - name: install dependencies
+      action: pip requirements=${webapps_dir}/${app_name}/requirements.txt state=present
+
+  handlers:
+    - include: handlers.yml
+
+- hosts: dbservers
+  sudo: True
+  sudo_user: postgres
+
+  vars_files:
+    - vars.yml
+
+  tasks:
+    - include: tasks/createdb.yml
+      when: fast_deploy is not defined
+
+  handlers:
+    - include: handlers.yml

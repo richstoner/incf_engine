@@ -1,0 +1,22 @@
+---
+
+# INCF :: this is the main flask skeleton that Satra started
+
+- hosts: engineservers
+  user: vagrant
+  sudo: True
+
+  vars_files:
+    - vars.yml
+
+  tasks:
+    - include: tasks/webserver.yml
+
+    - name: link /vagrant to {{ webapps_dir }}/{{ app_name}}
+      file: force=yes src=/vagrant path={{ webapps_dir }}/{{ app_name }} state=link
+
+    - name: install dependencies
+      action: pip requirements=${webapps_dir}/${app_name}/requirements.txt state=present
+
+  handlers:
+    - include: handlers.yml

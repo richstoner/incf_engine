@@ -1,0 +1,22 @@
+---
+
+- name: update apt
+  action: command /usr/bin/apt-get update
+
+- name: install base packages
+  action: apt pkg=$item state=installed
+  with_items:
+    - libpq-dev
+    - python-dev
+    - python-setuptools
+    - git
+    - libevent-dev
+    - python-psycopg2
+
+- name: install pip
+  action: easy_install name=pip
+
+- name: add env variables
+  action: template src=templates/profile.sh dest=/etc/profile.d/${app_name}.sh
+  notify:
+    - source env variables

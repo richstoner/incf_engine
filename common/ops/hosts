@@ -1,0 +1,10 @@
+# Production webservers go here
+[webservers]
+
+# Production databases go here
+# Want just one box? Make them the same
+[dbservers]
+
+[production:children]
+dbservers
+webservers

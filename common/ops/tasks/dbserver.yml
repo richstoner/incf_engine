@@ -1,0 +1,19 @@
+---
+
+- include: common.yml
+
+- name: install db server packages
+  action: apt pkg=$item state=present
+  with_items:
+    - postgresql
+    - postgresql-contrib
+
+- name: update postgres db configuration
+  action: copy src=templates/postgresql.conf dest=/etc/postgresql/9.1/main/postgresql.conf
+  notify:
+    - restart postgresql
+
+- name: update postgres client configuration
+  action: copy src=templates/pg_hba.conf dest=/etc/postgresql/9.1/main/pg_hba.conf
+  notify:
+    - restart postgresql
