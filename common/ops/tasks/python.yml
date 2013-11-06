@@ -1,0 +1,10 @@
+---
+
+- name: execute anaconda setup script
+  sudo: False
+  script: templates/setupconda.sh
+
+- name: install pip, numpy scipy networkx traits dateutil nose
+  sudo: False
+  shell: $HOME/anaconda/bin/conda install --yes -q pip numpy scipy matplotlib ipython executable=/bin/bash
+
