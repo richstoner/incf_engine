@@ -4,7 +4,7 @@
   sudo: False
   script: templates/setupconda.sh
 
-- name: install pip, numpy scipy networkx traits dateutil nose
+- name: install pip numpy scipy matplotlib ipython flask
   sudo: False
-  shell: $HOME/anaconda/bin/conda install --yes -q pip numpy scipy matplotlib ipython executable=/bin/bash
+  shell: $HOME/anaconda/bin/conda install --yes -q pip numpy scipy matplotlib ipython flask executable=/bin/bash
 
