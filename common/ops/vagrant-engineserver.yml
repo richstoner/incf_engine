@@ -15,8 +15,9 @@
     - name: link /vagrant to {{ webapps_dir }}/{{ app_name}}
       file: force=yes src=/vagrant path={{ webapps_dir }}/{{ app_name }} state=link
 
-    - name: install dependencies
-      action: pip requirements=${webapps_dir}/${app_name}/engine/requirements.txt state=present
+    - name: install gunicorn
+      sudo: False
+      shell: $HOME/anaconda/bin/pip install gunicorn executable=/bin/bash
 
   handlers:
     - include: handlers.yml

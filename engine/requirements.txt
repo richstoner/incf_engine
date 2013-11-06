@@ -2,12 +2,12 @@
 # Flask
 # ----------------------
 flask
-flask-sqlalchemy
+# flask-sqlalchemy
 
 # ----------------------
 # Testing
 # ----------------------
-mock
+# mock
 
 
 # ----------------------
