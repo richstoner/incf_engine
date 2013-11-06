@@ -15,8 +15,11 @@ import tornado.ioloop
 import tornado.options
 import tornado.web
 import tornado.websocket
+import tornado.gen
+import tornado.auth
 import tornado.autoreload
 from tornado.options import define, options
+import oauth2
 
 from redis import Redis
 from rq import Queue
@@ -34,6 +37,8 @@ import random
 import time
 import string
 from time import mktime, sleep
+
+import github
 
 
 define("port", default=8000, help="run on the given port", type=int)
@@ -59,14 +64,31 @@ class Object(object):
     pass
 
 
+class BaseHandler(tornado.web.RequestHandler):
 
-# this presents a single standalone webpage
-# important to note we're piping directly, not rendering it as a template
-# this let's us bypass having to escape A LOT of angular code (it's possible to mix templating engines, but it's not
-# worth the extra effort (for now)
-class WebHandler(tornado.web.RequestHandler):
+    @tornado.web.removeslash
+    def get_current_user(self):
+         return self.get_secure_cookie("user")
+
+class LogoutHandler(BaseHandler):
 
     def get(self):
+
+        self.clear_cookie("user")
+
+        self.redirect(self.get_argument("next","/"))
+
+
+
+
+
+class WebHandler(BaseHandler):
+
+    @tornado.web.authenticated
+    def get(self):
+
+        print self.get_current_user()
+
         try:
             with open(os.path.join(root, 'templates/index.html')) as f:
                 self.write(f.read())
@@ -75,14 +97,7 @@ class WebHandler(tornado.web.RequestHandler):
 
 
 
-
-
-
-
-
-
-
-from rqtasks import *
+from enginetasks import *
 
 # websockets
 class WSHandler(tornado.websocket.WebSocketHandler):
@@ -109,28 +124,33 @@ class WSHandler(tornado.websocket.WebSocketHandler):
         return_data['callback_id'] = messagedict['callback_id']
 
         if messagedict['type'] == 'kickoff_queue':
-            job = self.application.q.enqueue(count_words_at_url, 'http://nvie.com')
-            #self.shared.js.append(job)
-            while not job.result:
-                time.sleep(1)
 
-            return_data['data'] = job.result
-            return_data['result'] = True
+            pass
 
-            print 'job complete'
-            print job.result
+            #job = self.application.q.enqueue(count_words_at_url, 'http://nvie.com')
+            ##self.shared.js.append(job)
+            #while not job.result:
+            #    time.sleep(1)
+            #
+            #return_data['data'] = job.result
+            #return_data['result'] = True
+            #
+            #print 'job complete'
+            #print job.result
+            #
+            #self.write_message(json.dumps(return_data))
 
-            self.write_message(json.dumps(return_data))
 
-        elif messagedict['type'] == 'dropbox':
 
-            job = self.application.q.enqueue(processDropboxImage, messagedict['files'])
-            self.application.jobs.append(job)
+        #elif messagedict['type'] == 'dropbox':
+        #
+        #    job = self.application.q.enqueue(processDropboxImage, messagedict['files'])
+        #    self.application.jobs.append(job)
 
-        elif messagedict['type'] == 't1':
-
-            job = self.application.q.enqueue(processT1, messagedict)
-            self.application.jobs.append(job)
+        #elif messagedict['type'] == 't1':
+        #
+        #    job = self.application.q.enqueue(processT1, messagedict)
+        #    self.application.jobs.append(job)
 
             #while not job.result:
             #    time.sleep(1)
@@ -146,6 +166,8 @@ class WSHandler(tornado.websocket.WebSocketHandler):
         else:
 
             self.write_message(json.dumps(return_data))
+
+
 
         tornado.ioloop.IOLoop.instance().add_timeout(datetime.timedelta(seconds=1), self.check_queue)
 
@@ -184,6 +206,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
             elif j.meta:
 
                 #todo add support for multiple jobs
+
                 return_data = {}
                 return_data['result'] = True
                 return_data['func'] = 'update_meta'
@@ -209,30 +232,89 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 #tornado.ioloop.IOLoop.instance().add_timeout(datetime.timedelta(seconds=5), self.pollForAccessPoint)
 
 
-class UploadHandler(tornado.web.RequestHandler):
+#class UploadHandler(tornado.web.RequestHandler):
+#
+#    def post(self):
+#        #print self.request.files.keys()
+#        file1 = self.request.files['file'][0]
+#        original_fname = file1['filename']
+#        extension = os.path.splitext(original_fname)[1]
+#        fname = ''.join(random.choice(string.ascii_lowercase + string.digits) for x in range(6))
+#        final_filename= fname+extension
+#        full_path = os.path.abspath(root) + "/static/uploads/" + final_filename
+#        output_file = open(os.path.abspath(root) + "/static/uploads/" + final_filename, 'w')
+#        output_file.write(file1['body'])
+#        output_file.close()
+#
+#        from rqtasks import processImage
+#        job = self.application.q.enqueue(processImage,full_path)
+#        self.application.jobs.append(job)
+#
+#        self.finish("file" + final_filename + " is uploaded")
 
-    def post(self):
-        #print self.request.files.keys()
-        file1 = self.request.files['file'][0]
-        original_fname = file1['filename']
-        extension = os.path.splitext(original_fname)[1]
-        fname = ''.join(random.choice(string.ascii_lowercase + string.digits) for x in range(6))
-        final_filename= fname+extension
-        full_path = os.path.abspath(root) + "/static/uploads/" + final_filename
-        output_file = open(os.path.abspath(root) + "/static/uploads/" + final_filename, 'w')
-        output_file.write(file1['body'])
-        output_file.close()
-
-        from rqtasks import processImage
-        job = self.application.q.enqueue(processImage,full_path)
-        self.application.jobs.append(job)
-
-        self.finish("file" + final_filename + " is uploaded")
 
 
 
-# Example code: How to call a function with fixed timing within tornado async loop
-# tornado.ioloop.IOLoop.instance().add_timeout(datetime.timedelta(seconds=5), self.pollForAccessPoint)
+class GithubLoginHandler(BaseHandler, github.GithubMixin):
+
+    #_OAUTH_REDIRECT_URL = 'http://localhost:8888/auth/github'
+    _OAUTH_REDIRECT_URL = 'http://frontend.incfcloud.org/auth/github'
+
+    @tornado.web.asynchronous
+    def get(self):
+        # we can append next to the redirect uri, so the user gets the
+        # correct URL on login
+        redirect_uri = tornado.httputil.url_concat(
+                self._OAUTH_REDIRECT_URL, {'next': self.get_argument('next', '/')})
+
+        # if we have a code, we have been authorized so we can log in
+        if self.get_argument("code", False):
+
+            print 'we have code'
+
+            self.get_authenticated_user(
+                redirect_uri=redirect_uri,
+                client_id=self.settings["github_client_id"],
+                client_secret=self.settings["github_secret"],
+                code=self.get_argument("code"),
+                callback=self.async_callback(self._on_login)
+            )
+            return
+
+
+
+        # otherwise we need to request an authorization code
+        self.authorize_redirect(
+                redirect_uri=redirect_uri,
+                client_id=self.settings["github_client_id"],
+                extra_params={"scope": self.settings['github_scope'], "foo":1})
+
+
+    def _on_login(self, user):
+        """ This handles the user object from the login request """
+
+        print('authenticated callback')
+
+        #print user
+        if user:
+            logging.info('logged in user from github: ' + str(user))
+
+            self.set_secure_cookie("user", tornado.escape.json_encode(user))
+
+        else:
+            self.clear_cookie("user")
+
+        self.redirect(self.get_argument("next","/"))
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -261,15 +343,27 @@ class Application(tornado.web.Application):
         handlers = [
             (r'/', WebHandler),
             (r'/ws', WSHandler),
-            (r'/upload', UploadHandler)
+            (r"/auth/github", GithubLoginHandler),
+            (r'/logout', LogoutHandler)
+            #(r"/auth/logout", AuthLogoutHandler),
+            #(r'/upload', UploadHandler)
         ]
         settings = dict(
             cookie_secret="__TODO:_GENERATE_YOUR_OWN_RANDOM_VALUE_HERE__",
+
+            github_client_id="47663846f4ff92fbe8a3",
+            github_secret="3ac166be872348f12c848c7dbe8e92b32e5803e9",
+
+            github_scope = ['user','public_repo'],
+
+            login_url="http://frontend.incfcloud.org/auth/github",
+
             template_path=os.path.join(os.path.dirname(__file__), "templates"),
             static_path=os.path.join(os.path.dirname(__file__), "static"),
             xsrf_cookies=True,
         )
         tornado.web.Application.__init__(self, handlers, **settings)
+
 
 
  # Watch templates and static path directory

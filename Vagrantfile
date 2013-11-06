@@ -7,19 +7,24 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     frontend_config.vm.box = "precise64_base"
     frontend_config.vm.box_url = "http://files.vagrantup.com/precise64.box"
     
-    frontend_config.vm.network :forwarded_port, guest: 9181, host: 9181 # rqdash
-    frontend_config.vm.network :forwarded_port, guest: 9001, host: 9001 # supervisord
-    frontend_config.vm.network :forwarded_port, guest: 8000, host: 8001 # tornado native
-    #frontend_config.vm.network :forwarded_port, guest: 80, host: 80 # tornado through nginx
+    # don't need to forward ports if using private network
+    #frontend_config.vm.network :forwarded_port, guest: 9181, host: 9181 # rqdash
+    #frontend_config.vm.network :forwarded_port, guest: 9001, host: 9001 # supervisord
+    #frontend_config.vm.network :forwarded_port, guest: 8000, host: 8001 # tornado native
+    frontend_config.vm.network :forwarded_port, guest: 80, host: 8100 # tornado through nginx
+
     frontend_config.vm.network :public_network, :bridge => 'en0: Wi-Fi (AirPort)'
     
     frontend_config.vm.network :private_network, ip: "192.168.100.10"
 
     frontend_config.vm.provider :virtualbox do |vb|
-      vb.customize ["modifyvm", :id, "--cpuexecutioncap", "50"]
-      vb.customize ["modifyvm", :id, "--ioapic", "on"]
-      vb.customize ["modifyvm", :id, "--memory", "1048"]
-      vb.customize ["modifyvm", :id, "--cpus", "2"]
+
+    # disabling limits since build takes forever...
+    
+      #vb.customize ["modifyvm", :id, "--cpuexecutioncap", "50"]
+      #vb.customize ["modifyvm", :id, "--ioapic", "on"]
+      #vb.customize ["modifyvm", :id, "--memory", "1048"]
+      #vb.customize ["modifyvm", :id, "--cpus", "2"]
     end
 
     ## Frontend currently uses fabric to provision

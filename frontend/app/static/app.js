@@ -18,6 +18,9 @@ tornado_app.controller('ApplicationController', ['$scope', '$rootScope', '$timeo
 
         $scope.wsinit = WebSocketService.inittest();
 
+
+
+
         $scope.$watch('files', function (newValue, oldValue) {
             // Only act when our property has changed.
             if (newValue != oldValue) {
@@ -140,20 +143,21 @@ tornado_app.factory('WebSocketService', ['$q', '$rootScope', '$http', function (
 
 
     // added to handle trickiness in serving via nginx (or other http proxy)
-//    var wspath = 'ws://'+location.hostname+(location.port ? ':' +location.port :'') + '/ws';
-    var wspath = 'ws://'+location.hostname + ':8001/ws';
+    var wspath = 'ws://'+location.hostname+(location.port ? ':' +location.port :'') + '/ws';
+
+//    var wspath = 'ws://'+location.hostname + ':8000/ws';
 
     var ws = new WebSocket(wspath);
 
     ws.onopen = function () {
         console.log("Socket has been opened!");
         connectStatus = true;
-
     };
 
     ws.onmessage = function (message) {
         listener(JSON.parse(message.data));
     };
+
 
     function sendRequest(request) {
       var defer = $q.defer();
@@ -173,6 +177,8 @@ tornado_app.factory('WebSocketService', ['$q', '$rootScope', '$http', function (
       }
       return defer.promise;
     }
+
+
 
     function listener(data) {
 
