@@ -16,6 +16,7 @@
       file: force=yes src=/vagrant path={{ webapps_dir }}/{{ app_name }} state=link
 
     - name: install dependencies
+      sudo: False
       action: pip requirements=${webapps_dir}/${app_name}/engine/requirements.txt state=present
 
   handlers:
