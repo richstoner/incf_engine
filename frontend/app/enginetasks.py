@@ -13,6 +13,69 @@ import time
 # queue utilities
 from rq import get_current_job
 import socket
+
+_sparqlXML = 'application/sparql-results+xml';
+_sparqlJSON = 'application/sparql-results+json';
+_rdfXML = 'application/rdf+xml';
+_rdfJSON = 'application/rdf+json';
+_rdfN3 = 'text/rdf+n3';
+_Html = 'text/html';
+
+
+def simpleVirtuosoPostExample(job_vars):
+
+    job = get_current_job()
+
+    job.meta['handled_by'] = socket.gethostname()
+    job.meta['state'] = 'start'
+    job.save()
+
+    defaultIRI = ''
+    endpoint = 'http://192.168.100.30:8890/sparql'
+
+
+    session = requests.Session()
+    #qstring = '''
+    #
+    #    PREFIX fs: <http://freesurfer.net/fswiki/terms/>
+    #    PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+    #    PREFIX nidm: <http://nidm.nidash.org/#>
+    #    PREFIX prov: <http://www.w3.org/ns/prov#>
+    #
+    #    select distinct ?Concept where { [] a ?Concept .
+    #    filter regex(?Concept, "http://freesurfer.net/fswiki/terms" ) }
+    #    '''
+
+
+    qstring = '''select distinct ?Concept where {[] a ?Concept} LIMIT 100'''
+
+    session.headers = {'Accept': _sparqlJSON} # HTML from SELECT queries
+    data = {'query': qstring, 'default-graph-uri': defaultIRI }
+
+
+
+    result = session.post(endpoint, data=data)
+    print result.text
+    print result.json()
+
+    # print result.json()['results']
+
+    #offset = len('http://freesurfer.net/fswiki/terms/')
+
+    #tags = []
+    #for concept in result.json()['results']['bindings']:
+    #    v = concept['Concept']['value'][offset:]
+    #    tags.append(v)
+
+
+
+    return result.json()
+#
+
+
+
+
+
 #
 #
 #def processDropboxImage(files):

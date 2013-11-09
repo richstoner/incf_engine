@@ -19,7 +19,7 @@ import tornado.gen
 import tornado.auth
 import tornado.autoreload
 from tornado.options import define, options
-import oauth2
+#import oauth2
 
 from redis import Redis
 from rq import Queue
@@ -39,6 +39,16 @@ import string
 from time import mktime, sleep
 
 import github
+
+
+# constants
+
+TARGET_APLOG = 'aplog'
+TARGET_CONSOLE = 'console'
+TARGET_REMOTELOG = 'remotelog'
+TARGET_ANGULAR = 'angular'
+TARGET_NOTICE = 'notice'
+TARGET_INIT = 'init'
 
 
 define("port", default=8000, help="run on the given port", type=int)
@@ -81,64 +91,164 @@ class LogoutHandler(BaseHandler):
 
 
 
-
 class WebHandler(BaseHandler):
 
-    @tornado.web.authenticated
+
     def get(self):
 
-        print self.get_current_user()
-
+        user = self.get_current_user()
+        print user
         try:
-            with open(os.path.join(root, 'templates/index.html')) as f:
-                self.write(f.read())
+
+            if user:
+                with open(os.path.join(root, 'templates/index.html')) as f:
+                    self.write(f.read())
+
+            else:
+
+                with open(os.path.join(root, 'templates/landing.html')) as f:
+                    self.write(f.read())
+
         except IOError as e:
             self.write("404: Not Found")
 
 
+        #try:
+        #    with open(os.path.join(root, 'templates/index.html')) as f:
+        #        self.write(f.read())
 
-from enginetasks import *
+
+#@tornado.web.authenticated
+
+
+from enginetasks import simpleVirtuosoPostExample
 
 # websockets
 class WSHandler(tornado.websocket.WebSocketHandler):
+
+    ws_open = False
+
+    def build_message(self, target, data, callback_id):
+        return json.dumps(dict(target=target, data=data, callback_id=callback_id))
 
     def allow_draft76(self):
         # for iOS 5.0 Safari
         return True
 
     def open(self):
-        print 'Websocket connection opened.'
+        print 'open'
+        #self.application.log.debug('Websocket connection opened')
+        #self.application.firefly.ws_callback = self.send_message
 
-        # self.write_message("Hello World")
+    def send_message(self, target, data):
+
+        #self.application.log.debug('Client::%s: %s' % (target, data))
+        self.write_message(self.build_message(target=target, data=data, callback_id=-1))
+
+    def send_message_with_callback(self, target, data, callback_id):
+
+        #self.application.log.debug('Client::%s: %s' % (target, data))
+        self.write_message(self.build_message(target=target, data=data, callback_id=callback_id))
+
 
     def on_close(self):
-        print 'connection closed'
 
+        #self.application.log.debug('Websocket connection closed.')
+        #self.application.firefly.ws_callback = None
+        self.ws_open = False
+
+
+    # messages from the frontend
     def on_message(self, message):
 
-        print 'message received %s' % message
-        messagedict = json.loads(message)
+        self.ws_open = True
+        #self.application.log.debug('Websocket message received.')
 
-        return_data = {}
-        return_data['result'] = False
-        return_data['callback_id'] = messagedict['callback_id']
+        # assume all messaging is done with json-encoded strings
 
-        if messagedict['type'] == 'kickoff_queue':
+        message_dict = json.loads(message)
+        # verify we have a message target
 
-            pass
+        if 'target' in message_dict.keys():
 
-            #job = self.application.q.enqueue(count_words_at_url, 'http://nvie.com')
-            ##self.shared.js.append(job)
-            #while not job.result:
-            #    time.sleep(1)
-            #
-            #return_data['data'] = job.result
-            #return_data['result'] = True
-            #
-            #print 'job complete'
-            #print job.result
-            #
-            #self.write_message(json.dumps(return_data))
+            if message_dict['target'] == 'tornado':
+
+                self.handle_tornado_message(message_dict)
+
+            elif message_dict['target'] == 'init':
+
+                self.handle_init_message(message_dict)
+        else:
+            print message_dict
+
+
+    # control main tornado methods here
+    def handle_tornado_message(self, message):
+
+        # tornado message data
+        tornado_function = message['data']['function']
+        args = message['data']['args']
+
+
+        if tornado_function == 'save':
+            print 'saving current state to file'
+
+            # self.send_message('console', 'Saved application state')
+            self.send_message_with_callback(TARGET_CONSOLE, True, message['callback_id'])
+
+
+        if tornado_function == 'getStatus':
+
+#            print 'getting current application status'
+
+            d = ''
+            #d = self.application.firefly.getAccessPointStatus()
+
+            self.send_message_with_callback(TARGET_CONSOLE, d, message['callback_id'])
+
+
+
+        # print tornado_function, args
+
+    def handle_init_message(self, message):
+
+        return_message = self.build_message('init', 'Welcome client!', -1)
+
+        self.write_message(return_message)
+
+#
+#    def on_message(self, message):
+#
+#        print 'message received %s' % message
+#        messagedict = json.loads(message)
+#
+#        return_data = {}
+#        return_data['result'] = False
+#        return_data['callback_id'] = messagedict['callback_id']
+#
+#        if messagedict['type'] == 'kickoff_queue':
+#
+#            print 'test'
+#
+##simpleVirtuosoPostExample
+#
+#            job = self.application.q.enqueue(simpleVirtuosoPostExample, 'some query string')
+#
+#            #job = self.application.q.enqueue(count_words_at_url, 'http://nvie.com')
+#
+#            #self.shared.js.append(job)
+#            self.application.jobs.append(job)
+#
+#            while not job.result:
+#                time.sleep(1)
+#
+#            return_data['data'] = job.result
+#            return_data['result'] = True
+#
+#            print 'job complete'
+#            print job.result
+#
+#            self.write_message(json.dumps(return_data))
 
 
 
@@ -163,13 +273,13 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 
             #self.write_message(json.dumps(return_data))
 
-        else:
+        #else:
+        #
+        #    self.write_message(json.dumps(return_data))
 
-            self.write_message(json.dumps(return_data))
 
 
-
-        tornado.ioloop.IOLoop.instance().add_timeout(datetime.timedelta(seconds=1), self.check_queue)
+        #tornado.ioloop.IOLoop.instance().add_timeout(datetime.timedelta(seconds=1), self.check_queue)
 
 
     def check_queue(self):
@@ -198,7 +308,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
                 return_data = {}
                 return_data['result'] = True
                 return_data['func'] = 'update_image'
-                return_data['contents'] = json.loads(j.result)
+                return_data['contents'] = j.result
 
                 self.write_message(json.dumps(return_data))
 
@@ -344,8 +454,7 @@ class Application(tornado.web.Application):
             (r'/', WebHandler),
             (r'/ws', WSHandler),
             (r"/auth/github", GithubLoginHandler),
-            (r'/logout', LogoutHandler)
-            #(r"/auth/logout", AuthLogoutHandler),
+            (r"/auth/logout", LogoutHandler)
             #(r'/upload', UploadHandler)
         ]
         settings = dict(
