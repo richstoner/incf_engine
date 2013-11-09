@@ -24,10 +24,19 @@ def send_text_file(file_name):
     file_dot_text = file_name + '.txt'
     return app.send_static_file(file_dot_text)
 
+"""
+payload components:
+
+app_name
+sparql_endpoint or graph url or graph json
+"""
 @app.route('/submit', methods=['POST'])
 def submit_job():
     """Submit a job to the queue."""
     id = uuid1().hex
+    wd = '/data/%s' % id
+    if not os.path.exists(wd):
+        os.makedirs(wd)
     proc = subprocess.Popen('qsub -b yes sleep 60', stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, shell=True)
     o, e = proc.communicate()
@@ -67,4 +76,6 @@ def get_file(location):
 
 @app.route('/info')
 def get_info():
-    return jsonify(info='info')
+    return jsonify(info='info',
+                   query='',
+                   )
