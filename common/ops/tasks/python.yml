@@ -4,7 +4,26 @@
   sudo: False
   script: templates/setupconda.sh
 
-- name: install pip numpy scipy matplotlib ipython flask
+- name: install pip numpy scipy matplotlib ipython-notebook flask cmake
   sudo: False
-  shell: $HOME/anaconda/bin/conda install --yes -q pip numpy scipy matplotlib ipython flask executable=/bin/bash
+  shell: $HOME/anaconda/bin/conda install --yes -q pip numpy scipy matplotlib ipython-notebook flask cmake executable=/bin/bash
 
+- name: install traits networkx dateutil
+  sudo: False
+  shell: $HOME/anaconda/bin/conda install --yes -q traits networkx dateutil executable=/bin/bash
+
+- name: install nibabel
+  sudo: False
+  shell: $HOME/anaconda/bin/pip install nibabel  executable=/bin/bash
+
+- name: install rdflib
+  sudo: False
+  shell: $HOME/anaconda/bin/pip install https://github.com/RDFLib/rdflib/archive/master.zip executable=/bin/bash
+
+- name: install prov rdf
+  sudo: False
+  shell: $HOME/anaconda/bin/pip install https://github.com/satra/prov/archive/enh/rdf.zip executable=/bin/bash
+
+- name: install nipype
+  sudo: False
+  shell: $HOME/anaconda/bin/pip install https://github.com/nipy/nipype/zipball/master  executable=/bin/bash
