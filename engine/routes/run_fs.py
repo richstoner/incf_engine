@@ -123,73 +123,90 @@ niiri:e04fcb6b498211e3abc614109fcf6ae7 a nif:nlx_inv_20090243,
     prov:location "file://warpspeed.local/software/temp/nipype-tutorial/temp/fsscript/SAD_024.nii.gz" .
 '''
 
-"""
-Parse the input graph to get subject id and a list of T1 files
 
-"""
-subject_query = """
-    PREFIX prov: <http://www.w3.org/ns/prov#>
-    PREFIX foaf: <http://xmlns.com/foaf/0.1/>
-    select ?subject_id where
-    {?id a prov:Agent;
-        foaf:name ?subject_id .
-     ?c a prov:Collection;
-        prov:wasAttributedTo ?id .
-    }
-"""
-sq_result = rdfingraph.query(subject_query)
-try:
-    subject_id = str(sq_result.bindings[0]['?subject_id'])
-except:
-    subject_id = 'anon' + uuid1().hex
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(prog='fs_dir_to_graph.py',
+                                     description=__doc__)
+    parser.add_argument('-i', '--in_graph', type=str, required=True,
+                        help='Path to input graph turtle file')
+    parser.add_argument('-e', '--endpoint', type=str,
+                        help='SPARQL endpoint to use for update')
+    parser.add_argument('-g', '--graph_iri', type=str,
+                        help='Graph IRI to store the triples')
+    parser.add_argument('-o', '--output_dir', type=str, required=True,
+                        help='Output directory')
 
-t1_query = """
-    PREFIX prov: <http://www.w3.org/ns/prov#>
-    PREFIX nif: <http://neurolex.org/wiki/>
-    PREFIX crypto: <http://www.w3.org/2000/10/swap/crypto#>
-    select ?t1path ?sha where
-    {?c a prov:Collection;
-        prov:hadMember ?e .
-     ?e a nif:nlx_inv_20090243;
-        crypto:sha ?sha;
-        prov:location ?t1path .
-    }
-"""
-t1_result = rdfingraph.query(t1_query)
+    args = parser.parse_args()
 
-"""
-Retrieve all the files into cwd
-"""
-out_T1_files = []
-for idx, info in enumerate(t1_result.bindings):
-    o = urlparse.urlparse(info['?t1path'])
-    if o.scheme.startswith('file'):
-        uri = 'file://' + o.path
-    else:
-        uri = info['?t1path']
-    filename = os.path.join(os.getcwd(),
-                            'T1_%d_' % idx + os.path.split(o.path)[-1])
-    urllib.urlretrieve(uri, filename)
-    if hash_infile(filename, crypto=hashlib.sha512) != str(info['?sha']):
-        raise IOError("Hash of file doesn't match remote hash")
-    out_T1_files.append(filename)
+    rdfingraph = rdflib.Graph().parse(args.in_graph, format='turtle')
+
+    """
+    Parse the input graph to get subject id and a list of T1 files
+
+    """
+    subject_query = """
+        PREFIX prov: <http://www.w3.org/ns/prov#>
+        PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+        select ?subject_id where
+        {?id a prov:Agent;
+            foaf:name ?subject_id .
+         ?c a prov:Collection;
+            prov:wasAttributedTo ?id .
+        }
+    """
+    sq_result = rdfingraph.query(subject_query)
+    try:
+        subject_id = str(sq_result.bindings[0]['?subject_id'])
+    except:
+        subject_id = 'anon' + uuid1().hex
+
+    t1_query = """
+        PREFIX prov: <http://www.w3.org/ns/prov#>
+        PREFIX nif: <http://neurolex.org/wiki/>
+        PREFIX crypto: <http://www.w3.org/2000/10/swap/crypto#>
+        select ?t1path ?sha where
+        {?c a prov:Collection;
+            prov:hadMember ?e .
+         ?e a nif:nlx_inv_20090243;
+            crypto:sha ?sha;
+            prov:location ?t1path .
+        }
+    """
+    t1_result = rdfingraph.query(t1_query)
+
+    """
+    Retrieve all the files into cwd
+    """
+    out_T1_files = []
+    for idx, info in enumerate(t1_result.bindings):
+        o = urlparse.urlparse(info['?t1path'])
+        if o.scheme.startswith('file'):
+            uri = 'file://' + o.path
+        else:
+            uri = info['?t1path']
+        filename = os.path.join(os.getcwd(),
+                                'T1_%d_' % idx + os.path.split(o.path)[-1])
+        urllib.urlretrieve(uri, filename)
+        if hash_infile(filename, crypto=hashlib.sha512) != str(info['?sha']):
+            raise IOError("Hash of file doesn't match remote hash")
+        out_T1_files.append(filename)
 
 
-"""
-Run freesurfer and convert to rdf
-"""
-subject_dir = os.path.abspath('subjects')
-if not os.path.exists(subject_dir):
-    os.mkdir(subject_dir)
-provgraph, rdfgraph = run_freesurfer(subject_id,
-                                     out_T1_files,
-                                     subject_dir)
+    """
+    Run freesurfer and convert to rdf
+    """
+    subject_dir = os.path.abspath('subjects')
+    if not os.path.exists(subject_dir):
+        os.mkdir(subject_dir)
+    provgraph, rdfgraph = run_freesurfer(subject_id,
+                                         out_T1_files,
+                                         subject_dir)
 
-# TODO: Need to reconcile rdfingraph and rdfgraph based on file hashes
+    # TODO: Need to reconcile rdfingraph and rdfgraph based on file hashes
 
-newgraph = rdflib.Graph().parse(StringIO(rdfgraph.serialize()))
-newgraph.serialize('outfile.ttl', format='turtle')
+    newgraph = rdflib.Graph().parse(StringIO(rdfgraph.serialize()))
+    newgraph.serialize('outfile.ttl', format='turtle')
 
-context = {('@%s' % k): v for k, v in newgraph.namespaces()}
-newgraph.serialize('outfile.json', context=context, format='json-ld')
-
+    context = {('@%s' % k): v for k, v in newgraph.namespaces()}
+    newgraph.serialize('outfile.json', context=context, format='json-ld')
