@@ -36,6 +36,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     engine_config.vm.box = "gridneuro"
     engine_config.vm.box_url = "https://dl.dropboxusercontent.com/u/363467/precise64_neuro.box"
     engine_config.vm.network :forwarded_port, guest: 80, host: 8080
+
     #engine_config.vm.network :public_network, :bridge => 'en0: Wi-Fi (AirPort)'
     engine_config.vm.network :private_network, ip: "192.168.100.20"
     engine_config.vm.hostname = 'neuro'

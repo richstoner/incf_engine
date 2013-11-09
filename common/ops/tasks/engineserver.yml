@@ -63,3 +63,12 @@
     - restart nginx
 
 - include: python.yml
+
+- name: install fsl
+  action: apt pkg=$item state=installed
+  with_items:
+    - fsl-core
+
+- name: add fsl to profile
+  action: template src=fslfs.sh dest=/etc/profile.d/fslfs.sh
+
