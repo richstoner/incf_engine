@@ -80,12 +80,19 @@ def get_file(location):
     if not '/' in location:
         file_basename = location
         path = '/adhd200/'
-        file_size = os.stat(os.path.join(path, location))
+        file_size = os.stat(os.path.join(path, location)).st_size
         response.headers['Content-Disposition'] = 'attachment; filename=%s' % file_basename
         response.headers['Content-Length'] = file_size
         response.headers['X-Accel-Redirect'] = os.path.join(path, location) # nginx: http://wiki.nginx.org/NginxXSendfile
         return response
-    return 'location: %s ' % location
+    location = '/' + location
+    print location
+    file_basename = os.path.split(location)[-1]
+    file_size = os.stat(location).st_size
+    response.headers['Content-Disposition'] = 'attachment; filename=%s' % file_basename
+    response.headers['Content-Length'] = file_size
+    response.headers['X-Accel-Redirect'] = location # nginx: http://wiki.nginx.org/NginxXSendfile
+    return response
 
 @app.route('/info')
 def get_info():

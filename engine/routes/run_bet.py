@@ -28,20 +28,23 @@ def run_bet(T1_image, workdir):
     strip.base_dir = workdir
 
     bet_results = strip.run()
-    provgraph = bet_results.provenance
+    provgraph = bet_results.provenance[0]
+    for bundle in bet_results.provenance[1:]:
+        provgraph.add_bundle(bundle)
 
-    vol = MapNode(fsl.ImageMaths(op_string='-sum'), iterfield=['in_file'],
+    vol = MapNode(fsl.ImageStats(op_string='-V'), iterfield=['in_file'],
                   name='volumeextractor')
     vol.inputs.in_file = bet_results.outputs.out_file
     vol.base_dir = workdir
     vol_results = vol.run()
-    provgraph.add_bundle(vol_results.provenance)
+    for bundle in vol_results.provenance:
+        provgraph.add_bundle(bundle)
 
     return provgraph, provgraph.rdf()
 
 
 import hashlib
-from utils import hash_infile, upload_graph
+from utils import hash_infile, upload_graph, prov
 
 if __name__ == "__main__":
     import argparse
@@ -68,7 +71,7 @@ if __name__ == "__main__":
         PREFIX prov: <http://www.w3.org/ns/prov#>
         PREFIX nif: <http://neurolex.org/wiki/>
         PREFIX crypto: <http://www.w3.org/2000/10/swap/crypto#>
-        select ?t1path ?sha where
+        select ?t1path ?sha ?e where
         {?e a prov:Entity;
             a nif:nlx_inv_20090243;
             crypto:sha ?sha;
@@ -82,6 +85,7 @@ if __name__ == "__main__":
     Retrieve the file into wd
     """
     out_T1_files = []
+    filemap = {}
     for idx, info in enumerate(t1_result.bindings):
         o = urlparse.urlparse(info['?t1path'])
         if o.scheme.startswith('file'):
@@ -94,14 +98,39 @@ if __name__ == "__main__":
         if hash_infile(filename, crypto=hashlib.sha512) != str(info['?sha']):
             raise IOError("Hash of file doesn't match remote hash")
         out_T1_files.append(filename)
-
+        filemap[filename] = (info['?sha'], info['?e'])
 
     """
     Run bet and convert to rdf
     """
     provgraph, rdfgraph = run_bet(out_T1_files, cwd)
 
-    # TODO: Need to reconcile rdfingraph and rdfgraph based on file hashes
+    nipype_files = """
+PREFIX nipype: <http://nipy.org/nipype/terms/>
+select ?e ?value where {
+     ?e a prov:Entity ;
+        nipype:value ?value .
+        FILTER(regex(?value, 'file://'))
+}
+    """
+    filesfound = rdfgraph.query(nipype_files)
+
+    for info in filesfound.bindings:
+        localfile = urlparse.urlparse(info['?value']).path
+        relpath = localfile.replace(cwd, cwd.rstrip('/').split('/')[-1])
+        print localfile, relpath
+        sha = hash_infile(localfile, crypto=hashlib.sha512)
+        if localfile in filemap:
+            rdfgraph.add((rdflib.URIRef(info['?e']),
+                          rdflib.URIRef(prov.PROV['wasDerivedFrom'].get_uri()),
+                          rdflib.URIRef(filemap[localfile][1])))
+        rdfgraph.add((rdflib.URIRef(info['?e']),
+                      rdflib.URIRef('http://www.w3.org/2000/10/swap/crypto#sha'),
+                      rdflib.Literal(sha)))
+        rdfgraph.add((rdflib.URIRef(info['?e']),
+                      rdflib.URIRef(prov.PROV['location'].get_uri()),
+                      rdflib.Literal('http://192.168.100.20/file/%s' %
+                                     relpath, datatype=rdflib.XSD['anyURI'])))
 
     newgraph = rdflib.Graph().parse(StringIO(rdfgraph.serialize()))
     newgraph.serialize(os.path.join(cwd, 'outfile.ttl'), format='turtle')

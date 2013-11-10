@@ -9,13 +9,15 @@
 
 - name: enable virtuoso w/o password
   shell: /bin/sed -i s/"RUN=no"/"RUN=yes"/ /etc/default/virtuoso-opensource-6.1
-  notify:
-    - restart virtuosodb
 
 - name: grant virtuoso sparql user update permissions
   template: src=templates/enablesparul.isql dest=/tmp/enablesparul.isql
 
+- name: ensure service is running
+  service: name=virtuoso-opensource-6.1 state=started
+
 - name: execute permissions update
   shell: cat /tmp/enablesparul.isql | isql-vt
-  notify:
-    - restart virtuosodb
+
+- name: restart virtuoso
+  service: name=virtuoso-opensource-6.1 state=restarted
