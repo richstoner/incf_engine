@@ -18,6 +18,3 @@
 
 - name: execute permissions update
   shell: cat /tmp/enablesparul.isql | isql-vt
-
-- name: restart virtuoso
-  service: name=virtuoso-opensource-6.1 state=restarted
