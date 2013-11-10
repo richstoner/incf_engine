@@ -87,8 +87,8 @@ for row in results:
     {
     %s
     }
-    """ % sidgraph.serialize(format='nt')
+    """ % sidgraph.serialize(format='nt').replace('nidm.nidash.org/iri',
+                                                  'iri.nidash.org')
     print query
     data = {'query': query}
-    #result = session.post(endpoint2, data=data)
-
+    result = session.post(endpoint2, data=data)
