@@ -3,6 +3,7 @@ from app import app
 from flask import render_template, jsonify, make_response
 
 from uuid import uuid1
+import os
 import re
 import subprocess
 
@@ -69,9 +70,21 @@ def job_status(id):
     o, e = proc.communicate()
     return jsonify(status=o)
 
-@app.route('/file/<location>')
+@app.route('/file/<path:location>')
 def get_file(location):
     """Return current status of job from queue."""
+    response = make_response()
+    response.headers['Content-Description'] = 'File Transfer'
+    response.headers['Cache-Control'] = 'no-cache'
+    response.headers['Content-Type'] = 'application/octet-stream'
+    if not '/' in location:
+        file_basename = location
+        path = '/adhd200/'
+        file_size = os.stat(os.path.join(path, location))
+        response.headers['Content-Disposition'] = 'attachment; filename=%s' % file_basename
+        response.headers['Content-Length'] = file_size
+        response.headers['X-Accel-Redirect'] = os.path.join(path, location) # nginx: http://wiki.nginx.org/NginxXSendfile
+        return response
     return 'location: %s ' % location
 
 @app.route('/info')

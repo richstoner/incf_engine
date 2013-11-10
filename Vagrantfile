@@ -42,7 +42,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     engine_config.vm.hostname = 'neuro'
     engine_config.vm.synced_folder "../software", "/software"
     engine_config.vm.synced_folder "../data", "/data"
-  
+    engine_config.vm.synced_folder "../adhd200", "/adhd200"
+
     engine_config.vm.provider :virtualbox do |vb|
       vb.customize ["modifyvm", :id, "--cpuexecutioncap", "50"]
       vb.customize ["modifyvm", :id, "--ioapic", "on"]
