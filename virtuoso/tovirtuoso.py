@@ -94,7 +94,7 @@ for row in results:
     query = query2 % (sid, sid, sid, sid)
 
 
-    filename = '/Users/satra/Dropbox/shares/adhd200/%s_anat_1.nii.gz' % sid
+    filename = '/adhd200/%s_anat_1.nii.gz' % sid
 
     if os.path.exists(filename):
         sha = hash_infile(filename)
@@ -140,4 +140,3 @@ for row in results:
     """
     for row in sidgraph.graph.query(t1_query):
         print row
-    break
