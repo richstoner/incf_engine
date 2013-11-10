@@ -8,9 +8,9 @@
   sudo: False
   shell: $HOME/anaconda/bin/conda install --yes -q pip numpy scipy matplotlib ipython-notebook flask cmake executable=/bin/bash
 
-- name: install traits networkx dateutil
+- name: install nose traits networkx dateutil
   sudo: False
-  shell: $HOME/anaconda/bin/conda install --yes -q traits networkx dateutil executable=/bin/bash
+  shell: $HOME/anaconda/bin/conda install --yes -q nose traits networkx dateutil executable=/bin/bash
 
 - name: install nibabel
   sudo: False
