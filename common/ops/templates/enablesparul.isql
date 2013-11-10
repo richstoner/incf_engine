@@ -1,0 +1,1 @@
+grant SPARQL_UPDATE to "SPARQL";
