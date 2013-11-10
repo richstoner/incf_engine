@@ -19,22 +19,29 @@ def run_bet(T1_image, workdir):
     """Run freesurfer, convert to nidm and extract stats
     """
     from nipype import fsl
-    from nipype import Node
-    from fs_dir_to_graph import to_graph
-    from query_convert_fs_stats import get_collections, process_collection
+    from nipype import MapNode
 
-    strip = Node(fsl.BET(), name='skullstripper')
+    strip = MapNode(fsl.BET(), iterfield=['in_file'], name='skullstripper')
     strip.inputs.in_file = T1_image
+    strip.inputs.mesh = True
+    strip.inputs.mask = True
     strip.base_dir = workdir
 
-    results = strip.run()
-    provgraph = results.provenance
-    return provgraph
+    bet_results = strip.run()
+    provgraph = bet_results.provenance
+
+    vol = MapNode(fsl.ImageMaths(op_string='-sum'), iterfield=['in_file'],
+                  name='volumeextractor')
+    vol.inputs.in_file = bet_results.outputs.out_file
+    vol.base_dir = workdir
+    vol_results = vol.run()
+    provgraph.add_bundle(vol_results.provenance)
+
+    return provgraph, provgraph.rdf()
 
 
-from uuid import uuid1
 import hashlib
-from utils import hash_infile
+from utils import hash_infile, upload_graph
 
 if __name__ == "__main__":
     import argparse
@@ -46,10 +53,10 @@ if __name__ == "__main__":
                         help='SPARQL endpoint to use for update')
     parser.add_argument('-g', '--graph_iri', type=str,
                         help='Graph IRI to store the triples')
-    parser.add_argument('-o', '--output_dir', type=str, required=True,
-                        help='Output directory')
 
     args = parser.parse_args()
+
+    cwd = os.getcwd()
 
     rdfingraph = rdflib.Graph().parse(args.in_graph, format='turtle')
 
@@ -66,6 +73,7 @@ if __name__ == "__main__":
             a nif:nlx_inv_20090243;
             crypto:sha ?sha;
             prov:location ?t1path .
+            FILTER(regex(?t1path, "http*"))
         }
     """
     t1_result = rdfingraph.query(t1_query)
@@ -80,7 +88,7 @@ if __name__ == "__main__":
             uri = 'file://' + o.path
         else:
             uri = info['?t1path']
-        filename = os.path.join(args.work_dir,
+        filename = os.path.join(cwd,
                                 'file_%d_' % idx + os.path.split(o.path)[-1])
         urllib.urlretrieve(uri, filename)
         if hash_infile(filename, crypto=hashlib.sha512) != str(info['?sha']):
@@ -89,19 +97,21 @@ if __name__ == "__main__":
 
 
     """
-    Run freesurfer and convert to rdf
+    Run bet and convert to rdf
     """
-    subject_dir = os.path.abspath('subjects')
-    if not os.path.exists(subject_dir):
-        os.mkdir(subject_dir)
-    provgraph, rdfgraph = run_freesurfer(subject_id,
-                                         out_T1_files,
-                                         subject_dir)
+    provgraph, rdfgraph = run_bet(out_T1_files, cwd)
 
     # TODO: Need to reconcile rdfingraph and rdfgraph based on file hashes
 
     newgraph = rdflib.Graph().parse(StringIO(rdfgraph.serialize()))
-    newgraph.serialize('outfile.ttl', format='turtle')
+    newgraph.serialize(os.path.join(cwd, 'outfile.ttl'), format='turtle')
 
     context = {('@%s' % k): v for k, v in newgraph.namespaces()}
     newgraph.serialize('outfile.json', context=context, format='json-ld')
+
+    if args.endpoint:
+        if args.graph_iri:
+            upload_graph(newgraph, endpoint=args.endpoint,
+                         graph_iri=args.graph_iri)
+        else:
+            upload_graph(newgraph, endpoint=args.endpoint)
