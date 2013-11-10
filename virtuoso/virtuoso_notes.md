@@ -13,6 +13,10 @@ Reconfigure the package
 Update the service config: change 'run=no' to 'run=YES'
 
 	sudo pico /etc/default/virtuoso-opensource-6.1
+
+	or
+
+	sudo sed -i s/"RUN=no"/"RUN=yes"/ /etc/default/virtuoso-opensource-6.1                                        
 	
 Start virtuoso
 

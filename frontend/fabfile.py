@@ -66,12 +66,12 @@ def externals():
 
         # todo : fix numpy and scipy dependencies in frontend
 
-        sudo('apt-get build-dep -y python-numpy python-scipy')
-
-        sudo('pip install cython')
-        sudo('pip install -U numpy')
-        sudo('pip install -U scipy')
-        sudo('pip install git+git://github.com/scikit-image/scikit-image.git')
+        #sudo('apt-get build-dep -y python-numpy python-scipy')
+        #
+        #sudo('pip install cython')
+        #sudo('pip install -U numpy')
+        #sudo('pip install -U scipy')
+        #sudo('pip install git+git://github.com/scikit-image/scikit-image.git')
 
         sudo('pip install requests')
         sudo('pip install rq-dashboard') # also installs rq and redis thankfully

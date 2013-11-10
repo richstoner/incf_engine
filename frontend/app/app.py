@@ -15,8 +15,11 @@ import tornado.ioloop
 import tornado.options
 import tornado.web
 import tornado.websocket
+import tornado.gen
+import tornado.auth
 import tornado.autoreload
 from tornado.options import define, options
+#import oauth2
 
 from redis import Redis
 from rq import Queue
@@ -34,6 +37,18 @@ import random
 import time
 import string
 from time import mktime, sleep
+
+import github
+
+
+# constants
+
+TARGET_APLOG = 'aplog'
+TARGET_CONSOLE = 'console'
+TARGET_REMOTELOG = 'remotelog'
+TARGET_ANGULAR = 'angular'
+TARGET_NOTICE = 'notice'
+TARGET_INIT = 'init'
 
 
 define("port", default=8000, help="run on the given port", type=int)
@@ -59,78 +74,193 @@ class Object(object):
     pass
 
 
+class BaseHandler(tornado.web.RequestHandler):
 
-# this presents a single standalone webpage
-# important to note we're piping directly, not rendering it as a template
-# this let's us bypass having to escape A LOT of angular code (it's possible to mix templating engines, but it's not
-# worth the extra effort (for now)
-class WebHandler(tornado.web.RequestHandler):
+    @tornado.web.removeslash
+    def get_current_user(self):
+         return self.get_secure_cookie("user")
+
+class LogoutHandler(BaseHandler):
 
     def get(self):
+
+        self.clear_cookie("user")
+
+        self.redirect(self.get_argument("next","/"))
+
+
+
+
+class WebHandler(BaseHandler):
+
+
+    def get(self):
+
+        user = self.get_current_user()
+        print user
         try:
-            with open(os.path.join(root, 'templates/index.html')) as f:
-                self.write(f.read())
+
+            if user:
+                with open(os.path.join(root, 'templates/index.html')) as f:
+                    self.write(f.read())
+
+            else:
+
+                with open(os.path.join(root, 'templates/landing.html')) as f:
+                    self.write(f.read())
+
         except IOError as e:
             self.write("404: Not Found")
 
 
+        #try:
+        #    with open(os.path.join(root, 'templates/index.html')) as f:
+        #        self.write(f.read())
 
 
+#@tornado.web.authenticated
 
 
-
-
-
-
-from rqtasks import *
+from enginetasks import simpleVirtuosoPostExample
 
 # websockets
 class WSHandler(tornado.websocket.WebSocketHandler):
+
+    ws_open = False
+
+    def build_message(self, target, data, callback_id):
+        return json.dumps(dict(target=target, data=data, callback_id=callback_id))
 
     def allow_draft76(self):
         # for iOS 5.0 Safari
         return True
 
     def open(self):
-        print 'Websocket connection opened.'
+        print 'open'
+        #self.application.log.debug('Websocket connection opened')
+        #self.application.firefly.ws_callback = self.send_message
 
-        # self.write_message("Hello World")
+    def send_message(self, target, data):
+
+        #self.application.log.debug('Client::%s: %s' % (target, data))
+        self.write_message(self.build_message(target=target, data=data, callback_id=-1))
+
+    def send_message_with_callback(self, target, data, callback_id):
+
+        #self.application.log.debug('Client::%s: %s' % (target, data))
+        self.write_message(self.build_message(target=target, data=data, callback_id=callback_id))
+
 
     def on_close(self):
-        print 'connection closed'
 
+        #self.application.log.debug('Websocket connection closed.')
+        #self.application.firefly.ws_callback = None
+        self.ws_open = False
+
+
+    # messages from the frontend
     def on_message(self, message):
 
-        print 'message received %s' % message
-        messagedict = json.loads(message)
+        self.ws_open = True
+        #self.application.log.debug('Websocket message received.')
 
-        return_data = {}
-        return_data['result'] = False
-        return_data['callback_id'] = messagedict['callback_id']
+        # assume all messaging is done with json-encoded strings
 
-        if messagedict['type'] == 'kickoff_queue':
-            job = self.application.q.enqueue(count_words_at_url, 'http://nvie.com')
-            #self.shared.js.append(job)
-            while not job.result:
-                time.sleep(1)
+        message_dict = json.loads(message)
+        # verify we have a message target
 
-            return_data['data'] = job.result
-            return_data['result'] = True
+        if 'target' in message_dict.keys():
 
-            print 'job complete'
-            print job.result
+            if message_dict['target'] == 'tornado':
 
-            self.write_message(json.dumps(return_data))
+                self.handle_tornado_message(message_dict)
 
-        elif messagedict['type'] == 'dropbox':
+            elif message_dict['target'] == 'init':
 
-            job = self.application.q.enqueue(processDropboxImage, messagedict['files'])
-            self.application.jobs.append(job)
+                self.handle_init_message(message_dict)
+        else:
+            print message_dict
 
-        elif messagedict['type'] == 't1':
 
-            job = self.application.q.enqueue(processT1, messagedict)
-            self.application.jobs.append(job)
+    # control main tornado methods here
+    def handle_tornado_message(self, message):
+
+        # tornado message data
+        tornado_function = message['data']['function']
+        args = message['data']['args']
+
+
+        if tornado_function == 'save':
+            print 'saving current state to file'
+
+            # self.send_message('console', 'Saved application state')
+            self.send_message_with_callback(TARGET_CONSOLE, True, message['callback_id'])
+
+
+        if tornado_function == 'getStatus':
+
+#            print 'getting current application status'
+
+            d = ''
+            #d = self.application.firefly.getAccessPointStatus()
+
+            self.send_message_with_callback(TARGET_CONSOLE, d, message['callback_id'])
+
+
+
+        # print tornado_function, args
+
+    def handle_init_message(self, message):
+
+        return_message = self.build_message('init', 'Welcome client!', -1)
+
+        self.write_message(return_message)
+
+#
+#    def on_message(self, message):
+#
+#        print 'message received %s' % message
+#        messagedict = json.loads(message)
+#
+#        return_data = {}
+#        return_data['result'] = False
+#        return_data['callback_id'] = messagedict['callback_id']
+#
+#        if messagedict['type'] == 'kickoff_queue':
+#
+#            print 'test'
+#
+##simpleVirtuosoPostExample
+#
+#            job = self.application.q.enqueue(simpleVirtuosoPostExample, 'some query string')
+#
+#            #job = self.application.q.enqueue(count_words_at_url, 'http://nvie.com')
+#
+#            #self.shared.js.append(job)
+#            self.application.jobs.append(job)
+#
+#            while not job.result:
+#                time.sleep(1)
+#
+#            return_data['data'] = job.result
+#            return_data['result'] = True
+#
+#            print 'job complete'
+#            print job.result
+#
+#            self.write_message(json.dumps(return_data))
+
+
+
+        #elif messagedict['type'] == 'dropbox':
+        #
+        #    job = self.application.q.enqueue(processDropboxImage, messagedict['files'])
+        #    self.application.jobs.append(job)
+
+        #elif messagedict['type'] == 't1':
+        #
+        #    job = self.application.q.enqueue(processT1, messagedict)
+        #    self.application.jobs.append(job)
 
             #while not job.result:
             #    time.sleep(1)
@@ -143,11 +273,13 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 
             #self.write_message(json.dumps(return_data))
 
-        else:
+        #else:
+        #
+        #    self.write_message(json.dumps(return_data))
 
-            self.write_message(json.dumps(return_data))
 
-        tornado.ioloop.IOLoop.instance().add_timeout(datetime.timedelta(seconds=1), self.check_queue)
+
+        #tornado.ioloop.IOLoop.instance().add_timeout(datetime.timedelta(seconds=1), self.check_queue)
 
 
     def check_queue(self):
@@ -176,7 +308,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
                 return_data = {}
                 return_data['result'] = True
                 return_data['func'] = 'update_image'
-                return_data['contents'] = json.loads(j.result)
+                return_data['contents'] = j.result
 
                 self.write_message(json.dumps(return_data))
 
@@ -184,6 +316,7 @@ class WSHandler(tornado.websocket.WebSocketHandler):
             elif j.meta:
 
                 #todo add support for multiple jobs
+
                 return_data = {}
                 return_data['result'] = True
                 return_data['func'] = 'update_meta'
@@ -209,30 +342,89 @@ class WSHandler(tornado.websocket.WebSocketHandler):
 #tornado.ioloop.IOLoop.instance().add_timeout(datetime.timedelta(seconds=5), self.pollForAccessPoint)
 
 
-class UploadHandler(tornado.web.RequestHandler):
+#class UploadHandler(tornado.web.RequestHandler):
+#
+#    def post(self):
+#        #print self.request.files.keys()
+#        file1 = self.request.files['file'][0]
+#        original_fname = file1['filename']
+#        extension = os.path.splitext(original_fname)[1]
+#        fname = ''.join(random.choice(string.ascii_lowercase + string.digits) for x in range(6))
+#        final_filename= fname+extension
+#        full_path = os.path.abspath(root) + "/static/uploads/" + final_filename
+#        output_file = open(os.path.abspath(root) + "/static/uploads/" + final_filename, 'w')
+#        output_file.write(file1['body'])
+#        output_file.close()
+#
+#        from rqtasks import processImage
+#        job = self.application.q.enqueue(processImage,full_path)
+#        self.application.jobs.append(job)
+#
+#        self.finish("file" + final_filename + " is uploaded")
 
-    def post(self):
-        #print self.request.files.keys()
-        file1 = self.request.files['file'][0]
-        original_fname = file1['filename']
-        extension = os.path.splitext(original_fname)[1]
-        fname = ''.join(random.choice(string.ascii_lowercase + string.digits) for x in range(6))
-        final_filename= fname+extension
-        full_path = os.path.abspath(root) + "/static/uploads/" + final_filename
-        output_file = open(os.path.abspath(root) + "/static/uploads/" + final_filename, 'w')
-        output_file.write(file1['body'])
-        output_file.close()
-
-        from rqtasks import processImage
-        job = self.application.q.enqueue(processImage,full_path)
-        self.application.jobs.append(job)
-
-        self.finish("file" + final_filename + " is uploaded")
 
 
 
-# Example code: How to call a function with fixed timing within tornado async loop
-# tornado.ioloop.IOLoop.instance().add_timeout(datetime.timedelta(seconds=5), self.pollForAccessPoint)
+class GithubLoginHandler(BaseHandler, github.GithubMixin):
+
+    #_OAUTH_REDIRECT_URL = 'http://localhost:8888/auth/github'
+    _OAUTH_REDIRECT_URL = 'http://frontend.incfcloud.org/auth/github'
+
+    @tornado.web.asynchronous
+    def get(self):
+        # we can append next to the redirect uri, so the user gets the
+        # correct URL on login
+        redirect_uri = tornado.httputil.url_concat(
+                self._OAUTH_REDIRECT_URL, {'next': self.get_argument('next', '/')})
+
+        # if we have a code, we have been authorized so we can log in
+        if self.get_argument("code", False):
+
+            print 'we have code'
+
+            self.get_authenticated_user(
+                redirect_uri=redirect_uri,
+                client_id=self.settings["github_client_id"],
+                client_secret=self.settings["github_secret"],
+                code=self.get_argument("code"),
+                callback=self.async_callback(self._on_login)
+            )
+            return
+
+
+
+        # otherwise we need to request an authorization code
+        self.authorize_redirect(
+                redirect_uri=redirect_uri,
+                client_id=self.settings["github_client_id"],
+                extra_params={"scope": self.settings['github_scope'], "foo":1})
+
+
+    def _on_login(self, user):
+        """ This handles the user object from the login request """
+
+        print('authenticated callback')
+
+        #print user
+        if user:
+            logging.info('logged in user from github: ' + str(user))
+
+            self.set_secure_cookie("user", tornado.escape.json_encode(user))
+
+        else:
+            self.clear_cookie("user")
+
+        self.redirect(self.get_argument("next","/"))
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -261,15 +453,26 @@ class Application(tornado.web.Application):
         handlers = [
             (r'/', WebHandler),
             (r'/ws', WSHandler),
-            (r'/upload', UploadHandler)
+            (r"/auth/github", GithubLoginHandler),
+            (r"/auth/logout", LogoutHandler)
+            #(r'/upload', UploadHandler)
         ]
         settings = dict(
             cookie_secret="__TODO:_GENERATE_YOUR_OWN_RANDOM_VALUE_HERE__",
+
+            github_client_id="47663846f4ff92fbe8a3",
+            github_secret="3ac166be872348f12c848c7dbe8e92b32e5803e9",
+
+            github_scope = ['user','public_repo'],
+
+            login_url="http://frontend.incfcloud.org/auth/github",
+
             template_path=os.path.join(os.path.dirname(__file__), "templates"),
             static_path=os.path.join(os.path.dirname(__file__), "static"),
             xsrf_cookies=True,
         )
         tornado.web.Application.__init__(self, handlers, **settings)
+
 
 
  # Watch templates and static path directory
