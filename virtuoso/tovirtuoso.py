@@ -57,8 +57,8 @@ where
 SERVICE <http://computor.mit.edu:8890/sparql> {
            ?c2 nidm:ID "%s" .
            ?c2 nidm:Age ?age .
-           ?c2 nidm:Verbal_IQ ?viq .
-           ?c2 nidm:DX ?dx .
+           OPTIONAL { ?c2 nidm:Verbal_IQ ?viq } .
+           OPTIONAL { ?c2 nidm:DX ?dx} .
       }
 }
 """
@@ -77,7 +77,7 @@ for row in results:
         continue
     query = query2 % (sid, sid, sid, sid, sid)
     sidgraph = g.query(query)
-    print sidgraph.serialize(format='turtle')
+    #print sidgraph.serialize(format='turtle')
     # session defaults
     session = requests.Session()
     session.headers = {'Accept':'text/html'} # HTML from SELECT queries
@@ -89,6 +89,20 @@ for row in results:
     }
     """ % sidgraph.serialize(format='nt').replace('nidm.nidash.org/iri',
                                                   'iri.nidash.org')
-    print query
+    #print query
     data = {'query': query}
     result = session.post(endpoint2, data=data)
+
+    t1_query = """
+        PREFIX prov: <http://www.w3.org/ns/prov#>
+        PREFIX nif: <http://neurolex.org/wiki/>
+        PREFIX crypto: <http://www.w3.org/2000/10/swap/crypto#>
+        select ?t1path ?sha where
+        {?e a prov:Entity;
+            a nif:nlx_inv_20090243;
+            crypto:sha ?sha;
+            prov:location ?t1path .
+        }
+    """
+    for row in sidgraph.graph.query(t1_query):
+        print row
