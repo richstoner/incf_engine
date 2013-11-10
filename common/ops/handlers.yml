@@ -12,8 +12,8 @@
 - name: restart postgresql
   action: service name=postgresql state=restarted
 
-- name: start virtuosodb
-  action: service name=virtuoso-opensource-6.1 state=started
+- name: restart virtuosodb
+  action: service name=virtuoso-opensource-6.1 state=restarted
 
 - name: build database
   raw: source /etc/profile && PYTHONPATH=${webapps_dir}/${app_name} python ${webapps_dir}/${app_name}/createdb.py
