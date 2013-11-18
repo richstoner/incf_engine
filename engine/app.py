@@ -11,11 +11,11 @@ from flask import Flask
 
 app = Flask(__name__)
 
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'this_should_be_configured')
 app.config['PORT'] = int(os.environ.get('PORT', 8000))
-# app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
 app.config['DEBUG'] = bool(os.environ.get('DEBUG', False))
 
+# app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'to_be_configured')
+# app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
 # if app.config['SQLALCHEMY_DATABASE_URI']:
 #    db = SQLAlchemy(app)
 
