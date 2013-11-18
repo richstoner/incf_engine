@@ -1,11 +1,16 @@
-from app import app
+"""
+Engine Core API
 
-from flask import render_template, jsonify, make_response
-
-from uuid import uuid1
+Provides a RESTful endpoint
+"""
 import os
 import re
 import subprocess
+from uuid import uuid1
+
+from flask import render_template, jsonify, make_response
+
+from app import app
 
 @app.route('/')
 def home():
