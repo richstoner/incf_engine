@@ -1,7 +1,13 @@
 """
 Engine Core API
 
-Provides a RESTful endpoint
+Provides a RESTful endpoint to the Engine
+
+payload components:
+
+app_name
+sparql_endpoint or graph url or graph json
+
 """
 import os
 import re
@@ -9,71 +15,111 @@ import subprocess
 from uuid import uuid1
 
 from flask import render_template, jsonify, make_response
+from flask.ext.restful import reqparse, abort, Api, Resource
 
 from app import app
-
-@app.route('/')
-def home():
-    """Render website's home page."""
-    return render_template('home.html')
+from utils import parse_payload
 
 
-@app.route('/about/')
-def about():
-    """Render the website's about page."""
-    return render_template('about.html')
+api = Api(app)
+
+parser = reqparse.RequestParser()
+parser.add_argument('payload', type=str)
+parser.add_argument('job_id', type=str)
 
 
-@app.route('/<file_name>.txt')
-def send_text_file(file_name):
+
+class Root(Resource):
+    """
+    Root level of provides a human readable description of the engine
+    """
+    def get(self):
+        headers = {'Content-Type': 'text/html'}
+        return make_response(render_template('home.html'), 200, headers)
+
+api.add_resource(Root, '/')
+
+
+class SendTextFile(Resource):
     """Send your static text file."""
-    file_dot_text = file_name + '.txt'
-    return app.send_static_file(file_dot_text)
+    def get(self, file_name):
+        file_dot_text = file_name + '.txt'
+        return api.app.send_static_file(file_dot_text)
 
-"""
-payload components:
+api.add_resource(SendTextFile,  '/<file_name>.txt')
 
-app_name
-sparql_endpoint or graph url or graph json
-"""
-@app.route('/submit', methods=['POST'])
-def submit_job():
-    """Submit a job to the queue."""
-    id = uuid1().hex
-    wd = '/data/%s' % id
-    if not os.path.exists(wd):
-        os.makedirs(wd)
-    proc = subprocess.Popen('qsub -b yes sleep 60', stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE, shell=True)
-    o, e = proc.communicate()
-    lines = [line for line in o.split('\n') if line]
-    taskid = int(re.match("Your job ([0-9]*) .* has been submitted",
-                          lines[-1]).groups()[0])
-    app.jobs[id] = taskid
-    print app.jobs
-    return make_response((jsonify(id=id, job_id=taskid), 201, None))
 
-@app.route('/destroy/<id>')
-def destroy_job(id):
-    """Remove a job from the queue."""
-    try:
-        proc = subprocess.Popen('qdel %d' % app.jobs[id], stdout=subprocess.PIPE,
+class JobList(Resource):
+    """
+    JobList Resource
+    """
+    def get(self):
+        """Provides a list of all jobs being run on the engine"""
+        return make_response(jsonify(api.app.jobs))
+
+api.add_resource(JobList, '/jobs')
+
+
+class Job(Resource):
+    """
+    Job Resource
+
+    Provides an interface to a single job being run on the engine
+    """
+    def get(self, job_id):
+        """Return current status of job from queue."""
+        args = parser.parse_args()
+        if args['job_id']:
+            id = args['job_id']
+
+            proc = subprocess.Popen('qstat -j %d' % app.jobs[id],
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    shell=True)
+            o, e = proc.communicate()
+            return make_response(jsonify(status=o))
+        else:
+            return make_response(jsonify(api.app.jobs))
+
+    def put(self):
+        """Create a new job and add it to the queue."""
+        args = parser.parse_args()
+        in_graph = parse_payload(args['payload'])
+        id = in_graph.identifier.n3()  # should be included in payload
+        wd = '/data/%s' % id
+        if not os.path.exists(wd):
+            os.makedirs(wd)
+        proc = subprocess.Popen('qsub -b yes sleep 60', stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, shell=True)
-        o, _ = proc.communicate()
-        del app.jobs[id]
-        return make_response((o, 204, None))
-    except Exception, e:
-        return make_response((jsonify(message=('Could not remove job[%s] '
-                                               'because %s') % (id, e)),
-                              200, None))
+        o, e = proc.communicate()
+        lines = [line for line in o.split('\n') if line]
+        taskid = int(re.match("Your job ([0-9]*) .* has been submitted",
+                              lines[-1]).groups()[0])
+        app.jobs[id] = taskid
+        print app.jobs
+        # response should be a json-ld grapb
+        return make_response((jsonify(id=id, job_id=taskid), 201, None))
 
-@app.route('/status/<id>')
-def job_status(id):
-    """Return current status of job from queue."""
-    proc = subprocess.Popen('qstat -j %d' % app.jobs[id], stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE, shell=True)
-    o, e = proc.communicate()
-    return jsonify(status=o)
+    def delete(self, job_id):
+        """Remove a job from the queue."""
+        try:
+            proc = subprocess.Popen('qdel %d' % app.jobs[id],
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    shell=True)
+            o, _ = proc.communicate()
+            del app.jobs[id]
+            return make_response((o, 204, None))
+        except Exception, e:
+            return make_response(
+                (jsonify(message='Could not remove job[%s] because %s'
+                                 % (id, e)), 200, None))
+
+    def post(self):
+        """Update or replace an existing job resource"""
+
+api.add_resource(Job, '/jobs/<string:job_id>')
+
 
 @app.route('/file/<path:location>')
 def get_file(location):
