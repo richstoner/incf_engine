@@ -1,12 +1,16 @@
 __author__ = 'satra'
 
-import hashlib
 import os
+import json
+import hashlib
 from uuid import uuid1
+
+# linked data libs
+import rdflib
+from pyld import jsonld
 
 # PROV API library
 import prov.model as prov
-import rdflib
 
 # create namespace references to terms used
 foaf = prov.Namespace("foaf", "http://xmlns.com/foaf/0.1/")
@@ -74,3 +78,14 @@ def check_graph(graph):
                                  format='turtle')
     except:
         print stmt
+
+
+def parse_payload(payload):
+    """
+    Parses the JSON-LD payload from a job submission
+    """
+    data = json.loads(payload)
+    expanded = json.dumps(jsonld.expand(data))
+    g = rdflib.Graph(identifier=data['@id'])
+    g.parse(data=expanded, format='json-ld')
+    return g
