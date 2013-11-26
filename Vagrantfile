@@ -80,5 +80,24 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     end
   end
 
+  config.vm.define :engine_base do |base_config|
+
+    base_config.vm.box = "precise64_base"
+    base_config.vm.box_url = "http://files.vagrantup.com/precise64.box"
+    base_config.vm.network :private_network, ip: "192.168.100.40"
+
+    base_config.vm.provider :virtualbox do |vb|
+      vb.customize ["modifyvm", :id, "--cpuexecutioncap", "50"]
+      vb.customize ["modifyvm", :id, "--ioapic", "on"]
+      vb.customize ["modifyvm", :id, "--memory", "2048"]
+      vb.customize ["modifyvm", :id, "--cpus", "2"]
+    end
+
+    base_config.vm.provision :ansible do |ansible|
+    ansible.verbose = 'vvv'
+    ansible.playbook = "common/ops/vagrant-baseserver.yml"
+    ansible.inventory_path = "common/ops/vagrant-hosts"
+    end
+  end
 
 end
