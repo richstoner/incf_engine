@@ -11,3 +11,5 @@ repo_version: master
 webapps_dir: /srv
 webapp_port: 8000
 debug: true
+
+anaconda_home: /home/vagrant/anaconda
