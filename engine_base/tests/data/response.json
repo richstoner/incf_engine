@@ -1,0 +1,26 @@
+{
+    "@context": {
+        "process": {
+            "@id": "http://nidm.nidash.org/process",
+            "@type": "xsd:anyURI"
+        },
+        "status": "http://nidm.nidash.org/jobStatus",
+        "xsd": "http://www.w3.org/2001/XMLSchema#"
+    },
+    "@id": "http://iri.nidash.org/input_graph_iri",
+    "process": "http://nidm.nidash.org/bet",
+    "@graph": [
+        {
+            "@id": "http://iri.nidash.org/participant_id1",
+            "@type": "Participant",
+            "T1": "http://iri.nidash.org/t1_file_location1",
+            "status": "submitted"
+        },
+        {
+            "@id": "http://iri.nidash.org/participant_id2",
+            "@type": "Participant",
+            "T1": "http://iri.nidash.org/t1_file_location2",
+            "status": "failed"
+        }
+    ]
+}
