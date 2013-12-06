@@ -1,0 +1,17 @@
+---
+
+- hosts: baseserver
+  user: vagrant
+  sudo: True
+
+  vars_files:
+    - vars.yml
+
+  tasks:
+    - include: tasks/baseserver.yml
+
+    - name: link /vagrant to {{ webapps_dir }}/{{ app_name}}
+      file: force=yes src=/vagrant path={{ webapps_dir }}/{{ app_name }} state=link
+
+  handlers:
+    - include: handlers.yml

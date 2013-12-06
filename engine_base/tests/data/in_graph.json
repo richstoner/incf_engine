@@ -1,0 +1,20 @@
+{
+    "@context": {
+        "xsd": "http://www.w3.org/2001/XMLSchema#",
+        "niiri": "http://iri.nidash.org/",
+        "nidm": "http://nidm.nidash.org/",
+        "prov": "http://www.w3.org/ns/prov#",
+        "participant": "http://nidm.nidash.org/participant",
+        "T1": "http://nidm.nidash.org/T1",
+        "activity": "http://www.w3.org/ns/prov#Activity"
+    },
+    "@id": "niiri:input_graph_iri",
+    "activity": {"@id": "nidm:copy"},
+    "@graph": [
+        {
+            "@id": "niiri:participant_id",
+            "@type": "nidm:Participant",
+            "T1": {"@id": "niiri:t1_file_location"}
+        }
+    ]
+}
