@@ -1,26 +1,25 @@
 {
     "@context": {
-        "process": {
-            "@id": "http://nidm.nidash.org/process",
-            "@type": "xsd:anyURI"
-        },
+        "xsd": "http://www.w3.org/2001/XMLSchema#",
+        "niiri": "http://iri.nidash.org/",
+        "nidm": "http://nidm.nidash.org/",
+        "prov": "http://www.w3.org/ns/prov#",
+        "participant": "http://nidm.nidash.org/participant",
+        "T1": "http://nidm.nidash.org/T1",
+        "activity": "http://www.w3.org/ns/prov#Activity",
         "status": "http://nidm.nidash.org/jobStatus",
-        "xsd": "http://www.w3.org/2001/XMLSchema#"
+        "percent": {"@id": "http://nidm.nidash.org/percentComplete",
+                    "@type": "xsd:integer"}
     },
-    "@id": "http://iri.nidash.org/input_graph_iri",
-    "process": "http://nidm.nidash.org/bet",
+    "@id": "niiri:input_graph_iri",
+    "activity": {"@id": "nidm:copy"},
+    "status": {"@id": "nidm:submitted"},
+    "percent": 0,
     "@graph": [
         {
-            "@id": "http://iri.nidash.org/participant_id1",
-            "@type": "Participant",
-            "T1": "http://iri.nidash.org/t1_file_location1",
-            "status": "submitted"
-        },
-        {
-            "@id": "http://iri.nidash.org/participant_id2",
-            "@type": "Participant",
-            "T1": "http://iri.nidash.org/t1_file_location2",
-            "status": "failed"
+            "@id": "niiri:participant_id",
+            "@type": "nidm:Participant",
+            "T1": {"@id": "niiri:t1_file_location"}
         }
     ]
 }

@@ -11,6 +11,8 @@ sparql_endpoint or graph url or graph json
 """
 import os
 import re
+import json
+import hashlib
 import subprocess
 from uuid import uuid1
 
@@ -20,7 +22,7 @@ from flask.ext.restful import reqparse, abort, Api, Resource
 
 from werkzeug.contrib.fixers import ProxyFix
 
-from utils import parse_payload
+from utils import parse_payload, submit_job
 
 app = Flask(__name__)
 
@@ -29,10 +31,11 @@ app.wsgi_app = ProxyFix(app.wsgi_app)
 
 # use gunicorn port
 app.config['PORT'] = int(os.environ.get('PORT', 8000))
-app.config['DEBUG'] = bool(os.environ.get('DEBUG', False))
+app.config['DEBUG'] = bool(os.environ.get('DEBUG', True))
 
-# keep track of submitted jobs
+# keep track of submitted jobs and contexts
 app.jobs = {}
+app.context = {}
 
 # wrap app with flask-restful
 api = Api(app)
@@ -76,16 +79,29 @@ class JobList(Resource):
     def put(self):
         """Create a new job and add it to the queue."""
         args = parser.parse_args()
-        in_graph = parse_payload(args['payload'])
-        id = in_graph.identifier.n3()  # should be included in payload
-        wd = '/data/%s' % id
+        context = json.loads(args['payload'])['@context']
+        g = parse_payload(args['payload'])
+        iri_sha1 = hashlib.sha1(str(g.identifier)).hexdigest()
+
+        # create working directory
+        wd = '/tmp/%s' % iri_sha1
         if not os.path.exists(wd):
             os.makedirs(wd)
-        with open(os.join(wd, 'in_graph.ttl'), 'w') as fopen:
-            fopen.write(in_graph.serialize(format='turtle'))
-        api.app.jobs[id] = wd
+        # save a copy of the submitted graph
+        with open(os.path.join(wd, 'in_graph.jsonld'), 'w') as fopen:
+            fopen.write(json.dumps(args['payload']))
+
+        # submit the graph to be processed
+        job_json_ld = submit_job(g, context)
+        print job_json_ld
+        with open(os.path.join(wd, 'response.jsonld'), 'w') as fopen:
+            fopen.write(job_json_ld)
+
+        # update the job graph
+        api.app.jobs.update(json.loads(job_json_ld))
+
         # response should be a json-ld graph
-        return make_response((jsonify(id=id, job_id=id), 201, None))
+        return make_response(jsonify(api.app.jobs))
 
 api.add_resource(JobList, '/jobs')
 
@@ -154,6 +170,7 @@ class ServicesList(Resource):
     """ServicesList Resource"""
     def get(self):
         pass
+
 
 class Services(Resource):
     """Services Resource"""
